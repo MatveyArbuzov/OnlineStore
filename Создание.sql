@@ -1,0 +1,106 @@
+Use OnlineStore
+
+CREATE TABLE [Product] (
+[IdProduct] int IDENTITY(1,1) PRIMARY KEY NOT NULL,
+[Price] money NOT NULL,
+[Name] nvarchar(30) NOT NULL,
+[Quantity] int NOT NULL,
+[CategoryId] int NOT NULL
+)
+GO
+
+CREATE TABLE [Category] (
+[IdCategory] int IDENTITY(1,1) PRIMARY KEY NOT NULL,
+[Name] nvarchar(30) NOT NULL
+)
+GO
+
+ALTER TABLE [Product] ADD FOREIGN KEY ([CategoryId]) REFERENCES [Category] ([IdCategory])
+GO
+
+INSERT Category
+(Name)
+VALUES
+('Автотовары'),
+('Товары для дома'),
+('Одежда');
+
+INSERT Product
+(Price, Name, Quantity, CategoryId)
+VALUES
+(5000, 'Моторное масло Shell Helix', 5, 1),
+(6000, 'Набор инструментов в чемодане', 10, 1),
+(900, 'Удалитель ржавчины КППС', 20, 1),
+(1700, 'Синие джинсы', 5, 3),
+(500, 'Бордовая футболка', 15, 3),
+(1500, 'Чёрная кофта', 12, 3),
+(1400, 'Постельное белье', 7, 2),
+(700, 'Сушилка для посуды', 4, 2),
+(400, 'Швабра', 20, 2);
+
+
+
+
+--Запросы--
+--1-- список товаров, отсортированных по названию своей группы, далее по цене
+SELECT Product.Name, Category.Name AS Category, Product.Price
+FROM Product, Category
+WHERE Product.CategoryId = Category.IdCategory
+ORDER BY Category, Price
+
+--2-- Вывести список товаров, отсортированных по своей суммарной стоимости на складе (единиц товара * цена единицы)
+SELECT Name, Quantity, Price, Quantity * Price AS Amount
+FROM Product
+ORDER BY Amount
+
+--3-- Вывести список товаров, стоимостью “ниже среднего по базе”
+SELECT AVG(Price) AS AVG FROM Product 
+
+DECLARE
+@sr MONEY
+SELECT @sr = AVG(Price) FROM Product
+SELECT Name, Price
+FROM Product
+WHERE Price < @sr
+
+--4-- Вывести пары: {группа товара, число единиц товара на складе в группе}, использовать группировку (GroupBy, Sum)
+SELECT Category.Name, Sum (Quantity) AS Sum
+FROM Product, Category
+WHERE Product.CategoryId = Category.IdCategory
+GROUP BY CategoryId, Category.Name
+ORDER BY Sum
+
+--5-- Извлечь товар с минимальной ценой, увеличить её на 20%. Результат сохранить
+DECLARE
+@mn MONEY,
+@idd int
+SELECT @mn = MIN(Price) FROM Product
+SELECT @idd = IdProduct FROM Product
+WHERE Price = @mn
+SELECT Name, Quantity, Price FROM Product WHERE IdProduct = @idd
+
+DECLARE @mni MONEY SELECT @mni = MIN(Price) FROM Product SELECT IdProduct FROM Product WHERE Price = @mni
+
+DECLARE @mnp MONEY SELECT @mnp = MIN(Price) FROM Product SELECT Price FROM Product WHERE Price = @mnp
+
+
+--6-- Найти товар с максимальной ценой и удалить его из базы.
+DECLARE
+@ma MONEY,
+@idd1 int
+SELECT @ma = MAX(Price) FROM Product
+SELECT @idd1 = IdProduct FROM Product
+WHERE Price = @ma
+SELECT Name, Quantity, Price FROM Product WHERE IdProduct = @idd1
+
+DECLARE
+@mai MONEY
+SELECT @mai = MAX(Price) FROM Product
+SELECT IdProduct FROM Product
+WHERE Price = @mai
+
+--7-- Найти категорию с наименьшим числом товарных позиций. Добавить в неё новую товарную позицию (Нужно добавить)
+SELECT TOP(1) CategoryId
+FROM Product
+GROUP BY CategoryId
+ORDER BY COUNT(*)
