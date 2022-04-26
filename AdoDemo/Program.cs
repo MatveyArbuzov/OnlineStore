@@ -1,5 +1,7 @@
 ﻿using System.Data.SqlClient;
 using AdoDemo;
+using AdoDemo.EF;
+using static AdoDemo.EF.Cont;
 
 static void AdoNetDemo()
 {
@@ -144,7 +146,6 @@ static void AdoNetDemo()
     connection.Close();
 }
 
-//AdoNetDemo();
 
 static void LinqDemo()
 {
@@ -164,7 +165,7 @@ static void LinqDemo()
         Console.WriteLine($"{e.Name}, {e.Quantity * e.Price}");
     }
     Console.WriteLine("\n");
-   
+
 
     Console.WriteLine("3. Cписок товаров, стоимостью “ниже среднего по базе”\n");
     double sr = 0;
@@ -190,7 +191,7 @@ static void LinqDemo()
 
     foreach (Category e in db.CategoryList)
     {
-        Console.WriteLine($"{e.Name}: " + db.Products.Where(g => g.CategoryId.IdCategory == e.IdCategory).Sum(g=> g.Quantity));
+        Console.WriteLine($"{e.Name}: " + db.Products.Where(g => g.CategoryId.IdCategory == e.IdCategory).Sum(g => g.Quantity));
     }
     Console.WriteLine("\n");
 
@@ -201,7 +202,7 @@ static void LinqDemo()
     {
         Console.WriteLine($"{e.Name} {e.Price}");
     }
-    
+
     foreach (Product e in db.Products.Where(e => e.Price == minimum))
     {
         e.Price = Convert.ToDecimal(Convert.ToDouble(minimum) * 1.2);
@@ -263,4 +264,150 @@ static void LinqDemo()
         Console.WriteLine($"{e.IdProduct} {e.Name} {e.Price} {e.Quantity} {e.CategoryId.Name}");
     }
 }
-LinqDemo();
+
+static void EFDemo()
+{
+    Cont db = new Cont();
+    db.DropDB();
+    db.CreateDbIfNotExist();
+    db.AddCategory();
+    db.SaveChanges();
+    db.AddProduct();
+    db.SaveChanges();
+
+    Console.WriteLine("1. Cписок товаров, отсортированных по названию своей группы, далее по цене.\n");
+
+    foreach (ContProduct e in db.ContProducts.OrderBy(e => e.CategoryId.Name).ThenBy(e => e.Price))
+    {
+        Console.WriteLine($"{e.Name}, {e.CategoryId.Name}, {e.Price} ");
+    }
+
+    Console.WriteLine("\n");
+
+    Console.WriteLine("2. Cписок товаров, отсортированных по своей суммарной стоимости на складе (единиц товара * цена единицы)\n");
+    foreach (ContProduct e in db.ContProducts.OrderBy(e => e.Quantity * e.Price))
+    {
+        Console.WriteLine($"{e.Name}, {e.Quantity * e.Price}");
+    }
+    Console.WriteLine("\n");
+
+
+    Console.WriteLine("3. Cписок товаров, стоимостью “ниже среднего по базе”\n");
+    double sr = 0;
+    int chisl = 0;
+    foreach (ContProduct e in db.ContProducts)
+    {
+        sr = sr + Convert.ToDouble(e.Price);
+        chisl++;
+    }
+    sr = sr / chisl;
+    Console.WriteLine($"Средняя стоимость = {sr}\n");
+    Console.WriteLine($"Товары:");
+    foreach (ContProduct e in db.ContProducts)
+    {
+        if (Convert.ToDouble(e.Price) < sr)
+        {
+            Console.WriteLine($"{e.Name}, {e.Price}");
+        }
+    }
+    Console.WriteLine("\n");
+
+    Console.WriteLine("4. Пары: {группа товара, число единиц товара на складе в группе}");
+
+    foreach (ContCategory e in db.ContCategorys)
+    {
+        Cont db1 = new Cont();
+        Console.WriteLine($"{e.Name}: " + db1.ContProducts.Where(g => g.CategoryId.Id == e.Id).Sum(g => g.Quantity));
+        db1.Dispose();
+    }
+    Console.WriteLine("\n");
+
+    Console.WriteLine("5. Извлечь товар с минимальной ценой, увеличить её на 20%. Результат сохранить\n");
+    decimal minimum = db.ContProducts.Min(e => Convert.ToDecimal(e.Price));
+    Console.WriteLine("До изменений:");
+    foreach (ContProduct e in db.ContProducts)
+    {
+        Console.WriteLine($"{e.Name} {e.Price}");
+    }
+
+    foreach (var g in db.ContProducts)
+    {
+        Cont db2 = new Cont();
+        if (g.Price == db2.ContProducts.Min(g => g.Price))
+        {
+            g.Price = g.Price * Convert.ToDecimal(1.2);
+            break;
+        }
+        db2.SaveChanges();
+        db2.Dispose();
+    }
+    db.SaveChanges();
+
+    Console.WriteLine("\n");
+    Console.WriteLine("После изменений:");
+    foreach (ContProduct e in db.ContProducts)
+    {
+        Console.WriteLine($"{e.Name} {e.Price}");
+    }
+    Console.WriteLine("\n");
+
+    Console.WriteLine("6. Найти товар с максимальной ценой и удалить его из базы.\n");
+
+    Console.WriteLine("До изменений:");
+    foreach (ContProduct e in db.ContProducts)
+    {
+        Console.WriteLine($"{e.Name} {e.Price}");
+    }
+
+    decimal maxs = db.ContProducts.Max(e => Convert.ToDecimal(e.Price));
+    Cont db3 = new Cont();
+    foreach (ContProduct e in db3.ContProducts.Where(e => e.Price == maxs))
+    {
+        db3.ContProducts.Remove(e);
+    }
+    db3.SaveChanges();
+    db3.Dispose();
+    db.SaveChanges();
+    
+    Console.WriteLine("\n");
+    Console.WriteLine("После изменений:");
+    foreach (ContProduct e in db.ContProducts)
+    {
+        Console.WriteLine($"{e.Name} {e.Price}");
+    }
+    Console.WriteLine("\n");
+    //db.Dispose();
+
+    Console.WriteLine("7. Найти категорию с наименьшим числом товарных позиций. Добавить в неё новую товарную позицию.\n");
+    
+    int ab = 0;
+    int mini = 1000000000;
+    
+    foreach (ContCategory e in db.ContCategorys)
+    {
+        Cont db4 = new Cont();
+        if (db4.ContProducts.Where(g => g.CategoryId.Id == e.Id).Count() < mini)
+        {
+            mini = db4.ContProducts.Where(g => g.CategoryId.Id == e.Id).Count();
+            ab = e.Id;
+        }
+        db4.SaveChanges();
+        db4.Dispose();
+    }
+    ContCategory ab1 = db.ContCategorys.First(x => x.Id == ab);
+    db.ContProducts.Add(new ContProduct {Price = 1000, Name = "Добавленный товар", Quantity = 100, CategoryId = ab1});
+    db.SaveChanges();
+    //db.Dispose();
+    foreach (ContProduct e in db.ContProducts)
+    {
+        Console.WriteLine($"{e.Id} {e.Name} {e.Price} {e.Quantity} {e.CategoryId.Name}");
+    }
+    db.SaveChanges();
+}
+
+//AdoNetDemo();
+//LinqDemo();
+EFDemo();
+
+
+
